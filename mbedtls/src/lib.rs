@@ -113,25 +113,22 @@ cfg_if::cfg_if! {
         #[doc(hidden)]
         #[no_mangle]
         pub unsafe extern "C" fn mbedtls_platform_gmtime_r(tt: *const time_t, tp: *mut tm) -> *mut tm {
-            use chrono::prelude::*;
-
             //0 means no TZ offset
-            let naive = if tp.is_null() {
+            let utc = if tp.is_null() {
                 return core::ptr::null_mut()
             } else {
-                NaiveDateTime::from_timestamp(*tt, 0)
+                time::OffsetDateTime::from_unix_timestamp(*tt)
             };
-            let utc = DateTime::<Utc>::from_utc(naive, Utc);
 
             let tp = &mut *tp;
             tp.tm_sec   = utc.second()   as i32;
             tp.tm_min   = utc.minute()   as i32;
             tp.tm_hour  = utc.hour()     as i32;
             tp.tm_mday  = utc.day()      as i32;
-            tp.tm_mon   = utc.month0()   as i32;
+            tp.tm_mon   = (utc.month().into::<u8>() - 1) as i32;
             tp.tm_year  = utc.year()     as i32 - 1900;
-            tp.tm_wday  = utc.weekday().num_days_from_monday() as i32;
-            tp.tm_yday  = utc.ordinal0() as i32;
+            tp.tm_wday  = utc.weekday().number_days_from_monday() as i32;
+            tp.tm_yday  = (utc.ordinal() - 1) as i32;
             tp.tm_isdst = 0;
 
             tp
@@ -141,7 +138,7 @@ cfg_if::cfg_if! {
         #[doc(hidden)]
         #[no_mangle]
         pub unsafe extern "C" fn mbedtls_time(tp: *mut time_t) -> time_t {
-            let timestamp = chrono::Utc::now().timestamp() as time_t;
+            let timestamp = time::OffsetDateTime::now_utc().unix_timestamp() as time_t;
             if !tp.is_null() {
                 *tp = timestamp;
             }
